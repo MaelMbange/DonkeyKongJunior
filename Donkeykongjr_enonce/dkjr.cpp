@@ -68,6 +68,7 @@ int  delaiEnnemis = 4000;
 int  positionDKJr = 1;
 int  evenement = AUCUN_EVENEMENT;
 int etatDKJr;
+int nbrVie = 0;
 
 typedef struct
 {
@@ -87,16 +88,13 @@ typedef struct
 void* ThreadCle(void*);
 void* ThreadEvent(void*);
 void* ThreadDKJr(void*);
+void* ThreadDK(void*);
+void* ThreadScore(void*);
+void* ThreadEnnemis(void*);
+void* ThreadCorbeau(void*);
+void* ThreadCroco(void*);
 
 // ------------------------------------------------------------------------
-
-int main(int argc, char* argv[])
-{
-	ouvrirFenetreGraphique();
-
-	sigset_t mask;
-	sigfillset(&mask);
-	sigprocmask(SIG_BLOCK,&mask,NULL);
 
 	/*afficherCage(2);
 	afficherCage(3);
@@ -124,12 +122,42 @@ int main(int argc, char* argv[])
 	afficherEchec(1);
 	afficherScore(1999);*/
 
-	pthread_create(&threadCle,NULL,ThreadCle,NULL);
-	pthread_create(&threadDKJr,NULL,ThreadDKJr,NULL);
-	pthread_create(&threadEvenements,NULL,ThreadEvent,NULL);
-	
+int main(int argc, char* argv[])
+{
+	ouvrirFenetreGraphique();
 
-	pthread_join(threadEvenements,NULL);
+	sigset_t mask;
+	sigfillset(&mask);
+	sigprocmask(SIG_BLOCK,&mask,NULL);
+
+	// -------- Initialisation des mutex ----------------
+	pthread_mutex_init(&mutexEvenement,NULL);
+	pthread_mutex_init(&mutexGrilleJeu,NULL);
+	pthread_mutex_init(&mutexScore,NULL);
+	pthread_mutex_init(&mutexDK,NULL);	
+	// -------------------------------------------------
+
+	// -------- Initialisation des cond ----------------
+	pthread_cond_init(&condDK,NULL);
+	pthread_cond_init(&condScore,NULL);
+	// -------------------------------------------------
+
+	pthread_create(&threadCle,NULL,ThreadCle,NULL);
+	pthread_create(&threadEvenements,NULL,ThreadEvent,NULL);
+	pthread_create(&threadDK,NULL,ThreadDK,NULL);
+	pthread_create(&threadScore,NULL,ThreadScore,NULL);
+	pthread_create(&threadEnnemis,NULL,ThreadEnnemis,NULL);
+	
+	do{
+		pthread_create(&threadDKJr,NULL,ThreadDKJr,NULL);
+		pthread_join(threadDKJr,NULL);
+
+		nbrVie++;
+
+		afficherEchec(nbrVie);
+	}while(nbrVie < 3);
+
+	return 0;
 }
 
 // -------------------------------------
@@ -226,20 +254,23 @@ void* ThreadEvent(void*){
 
 		if(evt == SDL_QUIT)
 			exit(0);
-		else if(evt == SDLK_UP)
+		/*else if(evt == SDLK_UP && nbrVie != 3)
 			fprintf(stdout,"Key = SDLK_UP\n");
-		else if(evt == SDLK_DOWN)
+		else if(evt == SDLK_DOWN && nbrVie != 3)
 			fprintf(stdout,"Key = SDLK_DOWN\n");
-		else if(evt == SDLK_LEFT)
+		else if(evt == SDLK_LEFT && nbrVie != 3)
 			fprintf(stdout,"Key = SDLK_LEFT\n");
-		else if(evt == SDLK_RIGHT)
-			fprintf(stdout,"Key = SDLK_RIGHT\n");
+		else if(evt == SDLK_RIGHT && nbrVie != 3)
+			fprintf(stdout,"Key = SDLK_RIGHT\n");*/
 
 		pthread_mutex_lock(&mutexEvenement);
 			evenement = evt;
 		pthread_mutex_unlock(&mutexEvenement);
 
+
+		//fprintf(stdout,"ENVOIE SIGNAL A THREADDKJr DKJr\n");
 		pthread_kill(threadDKJr,SIGQUIT);
+		//fprintf(stdout,"FIN SIGNAL A THREADDKJr DKJr\n");
 
 		nanosleep(&time,NULL);
 		pthread_mutex_lock(&mutexEvenement);
@@ -248,8 +279,84 @@ void* ThreadEvent(void*){
 	}
 }
 
+void* ThreadScore(void*){
+	while(1){
+		pthread_mutex_lock(&mutexScore);
+			pthread_cond_wait(&condScore,&mutexScore);
+			if(MAJScore)
+			{
+				MAJScore = false;
+				afficherScore(score);
+			}
+		pthread_mutex_unlock(&mutexScore);
+	}
+	pthread_exit(NULL);
+}
+
+
+void* ThreadDK(void*){
+
+	int NrPieceCage;
+	struct timespec wait = {0,700'000'000};
+
+	while(1){
+		NrPieceCage = 1;
+		afficherCage(1);
+		afficherCage(2);
+		afficherCage(3);
+		afficherCage(4);
+
+		while(NrPieceCage <= 4)
+		{
+			pthread_mutex_lock(&mutexDK);
+			pthread_cond_wait(&condDK,&mutexDK);
+			if(MAJDK)
+			{
+				MAJDK = false;
+				switch(NrPieceCage)
+				{
+					case 1:
+						effacerCarres(2,7,2,2);
+					break;
+
+					case 2:
+						effacerCarres(2,9,2,2);
+					break;
+
+					case 3:
+						effacerCarres(4,7,2,2);
+					break;
+
+					case 4:
+						effacerCarres(4,9,2,2);
+					break;
+				}
+				NrPieceCage++;
+			}
+			pthread_mutex_unlock(&mutexDK);
+		}
+
+		afficherRireDK();
+		nanosleep(&wait,NULL);
+		effacerCarres(3,8,2,2);
+
+		// ---------------------------------
+		// Modification des valeurs de score
+		pthread_mutex_lock(&mutexScore);
+			score += 10;
+			MAJScore = true;
+		pthread_mutex_unlock(&mutexScore);
+		pthread_cond_signal(&condScore);
+		// ---------------------------------
+	}
+
+	pthread_exit(NULL);
+}
+
 
 void* ThreadDKJr(void*){
+
+	//fprintf(stdout,"Creation THREAD DKJr\n");
 
 	sigset_t mask;
 	sigemptyset(&mask);
@@ -379,15 +486,84 @@ void* ThreadDKJr(void*){
 			switch(evenement){
 				case SDLK_LEFT:
 					if(positionDKJr >= 3){
+						struct timespec time = timespec{0,500'000'000};
+						struct timespec time2 = timespec{0,250'000'000};
 						setGrilleJeu(1,positionDKJr);
 						effacerCarres(7, (positionDKJr * 2) + 7, 2, 2);
 
 						positionDKJr--;
 						if(positionDKJr == 2 && grilleJeu[0][1].type == CLE){ // probablement liberer les mutexes
 							fprintf(stdout,"\033[96mDKJr a recupere une cle...\033[0m\n");
+							afficherDKJr(6,11,9);
+							
+							nanosleep(&time,NULL);
+
+							effacerCarres(5, 12, 3, 2);
+							afficherDKJr(6,11,10);
+
+							nanosleep(&time,NULL);
+
+							effacerCarres(3, 11, 3, 2);
+							afficherDKJr(6,10,11);
+							
+							// ---------------------------------
+							// Envoie D'un signal 
+							// au thread DK
+							pthread_mutex_lock(&mutexDK);
+								MAJDK = true;
+							pthread_mutex_unlock(&mutexDK);
+							pthread_cond_signal(&condDK);
+							// ---------------------------------
+
+							// ---------------------------------
+							// Modification des valeurs de score
+							pthread_mutex_lock(&mutexScore);
+								score += 10;
+								MAJScore = true;
+							pthread_mutex_unlock(&mutexScore);
+							pthread_cond_signal(&condScore);
+							// ---------------------------------
+
+
+							nanosleep(&time,NULL);
+
+							effacerCarres(6, 10, 2, 3);
+
+							setGrilleJeu(3,1,DKJR);
+							afficherDKJr(11, 9, 1);
+							etatDKJr = LIBRE_BAS;
+							positionDKJr = 1;
 						}
 						else if(positionDKJr == 2 && grilleJeu[0][1].type == VIDE){ // probablement liberer les mutexes
 							fprintf(stdout,"\033[95mDKJr a ratee la cle, -1 vie...\033[0m\n");
+							afficherDKJr(5,11,9);
+
+							nanosleep(&time,NULL);
+
+							effacerCarres(5, 11, 3, 3);
+							afficherDKJr(6,(positionDKJr * 2) + 7,12);
+
+							nanosleep(&time,NULL);
+							// affichage buisson
+							effacerCarres(6, (positionDKJr * 2) + 7, 3, 2);
+							afficherDKJr(11,0 + 7,13);
+
+							//disparition
+							nanosleep(&time2,NULL);
+							effacerCarres(11, 7, 2, 2);
+
+							//reaparition
+							nanosleep(&time2,NULL);
+							afficherDKJr(12,0 + 7,13);
+
+							//disparition
+							nanosleep(&time2,NULL);
+							effacerCarres(11, 7, 2, 2);
+
+							pthread_mutex_unlock(&mutexEvenement);
+							pthread_mutex_unlock(&mutexGrilleJeu);
+							
+							pthread_exit(0);
 						}
 						else{							
 							setGrilleJeu(1,positionDKJr,DKJR);
@@ -476,8 +652,41 @@ void* ThreadDKJr(void*){
 
 	pthread_exit(0);
 }
+
+
+void* ThreadEnnemis(void*){
+
+	struct timespec wait = {4,0};
+
+	srand(time(NULL));
+
+	while(1){
+		int x = rand()%2+1;
+		if(x == 1){
+			pthread_t Croco;
+			pthread_create(&Croco,NULL,ThreadCroco,NULL);
+			printf("\033[38;5;107mCROCO CREATED\033[0m\n");
+		}
+		else{
+			pthread_t Corback;
+			pthread_create(&Corback,NULL,ThreadCroco,NULL);
+			printf("\033[38;5;99mCORBACK CREATED\033[0m\n");
+
+		}
+		nanosleep(&wait,NULL);
+	}
+	pthread_exit(NULL);
+}
+void* ThreadCorbeau(void*){
+
+}
+void* ThreadCroco(void*){
+
+}
+
+
  //------------------------------------------------------
 
  void HandlerSIGQUIT(int){
-	 fprintf(stdout,"HandlerSIQUIT\n");
+	//fprintf(stdout,"HandlerSIQUIT\n");
  }
