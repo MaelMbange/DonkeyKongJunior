@@ -33,6 +33,7 @@ void* FctThreadCroco(void *);
 void initGrilleJeu();
 void setGrilleJeu(int l, int c, int type = VIDE, pthread_t tid = 0);
 void afficherGrilleJeu();
+void printGrille();
 
 void HandlerSIGUSR1(int);
 void HandlerSIGUSR2(int);
@@ -142,6 +143,10 @@ int main(int argc, char* argv[])
 	pthread_cond_init(&condScore,NULL);
 	// -------------------------------------------------
 
+	// -------- Creation des Cles ----------------
+	pthread_key_create(&keySpec,NULL);
+	// -------------------------------------------------
+
 	pthread_create(&threadCle,NULL,ThreadCle,NULL);
 	pthread_create(&threadEvenements,NULL,ThreadEvent,NULL);
 	pthread_create(&threadDK,NULL,ThreadDK,NULL);
@@ -156,6 +161,8 @@ int main(int argc, char* argv[])
 
 		afficherEchec(nbrVie);
 	}while(nbrVie < 3);
+
+	pthread_key_delete(keySpec);
 
 	return 0;
 }
@@ -420,16 +427,20 @@ void* ThreadDKJr(void*){
 					
 					setGrilleJeu(2,positionDKJr,DKJR);
 					if(positionDKJr == 1 || positionDKJr == 5){
+						setGrilleJeu(2,positionDKJr,DKJR);
 						afficherDKJr(10,(positionDKJr * 2) + 7,7);
 						etatDKJr = LIANE_BAS;
 					}
 					else if(positionDKJr == 7){ // si Dkjr n'est pas à un emplacement de lianne alors il ne change pas d'etat
+						setGrilleJeu(2,positionDKJr,DKJR);
 						afficherDKJr(10,(positionDKJr * 2) + 7,5);						
 						etatDKJr = DOUBLE_LIANE_BAS;
 					}
 					else
 					{
+						setGrilleJeu(2,positionDKJr,DKJR);
 						afficherDKJr(10,(positionDKJr * 2) + 7,8);
+						//printGrille();
 
 						// mise en place de l'attente de 1,4 seconde.
 						pthread_mutex_unlock(&mutexGrilleJeu);
@@ -524,7 +535,6 @@ void* ThreadDKJr(void*){
 							pthread_cond_signal(&condScore);
 							// ---------------------------------
 
-
 							nanosleep(&time,NULL);
 
 							effacerCarres(6, 10, 2, 3);
@@ -592,7 +602,7 @@ void* ThreadDKJr(void*){
 					setGrilleJeu(1,positionDKJr);
 					effacerCarres(7, (positionDKJr * 2) + 7, 2, 2);
 
-					setGrilleJeu(1,positionDKJr);
+					setGrilleJeu(2,positionDKJr,DKJR);
 					afficherDKJr(10,(positionDKJr * 2) + 7,5);
 
 					etatDKJr = DOUBLE_LIANE_BAS;
@@ -602,18 +612,22 @@ void* ThreadDKJr(void*){
 				case SDLK_UP:
 					struct timespec time = timespec{1,400'000'000};
 
-					if(positionDKJr != 2 &&positionDKJr != 7){							
+					if(positionDKJr != 2 &&positionDKJr != 7){	
+						setGrilleJeu(0,positionDKJr,DKJR);						
 						setGrilleJeu(1,positionDKJr);
 						effacerCarres(7, (positionDKJr * 2) + 7, 2, 2);
 					}
 					
 					if(positionDKJr == 6){
+						setGrilleJeu(0,positionDKJr,DKJR);
 						afficherDKJr(6,(positionDKJr * 2) + 7,7);
 						etatDKJr = LIANE_HAUT;
 					}
 					else if(positionDKJr != 2 &&positionDKJr != 7)
 					{
+						setGrilleJeu(0,positionDKJr,DKJR);
 						afficherDKJr(6,(positionDKJr * 2) + 7,8);
+						//printGrille();
 
 						// mise en place de l'attente de 1,4 seconde.
 						pthread_mutex_unlock(&mutexGrilleJeu);
@@ -644,7 +658,9 @@ void* ThreadDKJr(void*){
 
 				etatDKJr = LIBRE_HAUT;
 			}
-		}
+		}		
+
+		//printGrille();
 
 		pthread_mutex_unlock(&mutexEvenement);
 		pthread_mutex_unlock(&mutexGrilleJeu);		
@@ -656,37 +672,98 @@ void* ThreadDKJr(void*){
 
 void* ThreadEnnemis(void*){
 
+	sigset_t mask;
+	sigemptyset(&mask);
+	sigaddset(&mask,SIGALRM);
+	pthread_sigmask(SIG_UNBLOCK,&mask,NULL);
+
+	struct sigaction signal;
+
+	sigemptyset(&signal.sa_mask);
+	signal.sa_flags = 0;
+	signal.sa_handler = HandlerSIGALRM;
+	sigaction(SIGALRM,&signal,NULL);
+
 	struct timespec wait = {4,0};
 
 	srand(time(NULL));
+
+	alarm(15);
 
 	while(1){
 		int x = rand()%2+1;
 		if(x == 1){
 			pthread_t Croco;
-			pthread_create(&Croco,NULL,ThreadCroco,NULL);
+			pthread_create(&Croco,NULL,ThreadCorbeau,NULL);
 			printf("\033[38;5;107mCROCO CREATED\033[0m\n");
 		}
 		else{
 			pthread_t Corback;
-			pthread_create(&Corback,NULL,ThreadCroco,NULL);
+			pthread_create(&Corback,NULL,ThreadCorbeau,NULL);
 			printf("\033[38;5;99mCORBACK CREATED\033[0m\n");
-
 		}
+		wait.tv_sec = delaiEnnemis/1000;
+		wait.tv_nsec = (delaiEnnemis%1000)*1'000'000;
 		nanosleep(&wait,NULL);
 	}
 	pthread_exit(NULL);
 }
 void* ThreadCorbeau(void*){
+	struct timespec wait = {0,700'000'000};
+	int* PosHorCourrante = new int(0);
+	pthread_setspecific(keySpec,PosHorCourrante);
 
+	while(*PosHorCourrante < 8){
+		pthread_mutex_lock(&mutexGrilleJeu);
+			afficherCorbeau(*PosHorCourrante*2+8,(*PosHorCourrante)%2+1);
+			setGrilleJeu(2,*PosHorCourrante,CORBEAU,pthread_self());
+		pthread_mutex_unlock(&mutexGrilleJeu);
+
+		nanosleep(&wait,NULL);
+
+		pthread_mutex_lock(&mutexGrilleJeu);
+			effacerCarres(9,*PosHorCourrante*2+8,2,1);
+			setGrilleJeu(2,*PosHorCourrante);
+		pthread_mutex_unlock(&mutexGrilleJeu);
+
+		(*PosHorCourrante)++;
+	}
+
+	delete PosHorCourrante;
+	pthread_exit(NULL);
 }
 void* ThreadCroco(void*){
 
+	pthread_exit(NULL);
 }
+
 
 
  //------------------------------------------------------
 
- void HandlerSIGQUIT(int){
+ void printGrille(){
+
+	for (int  i = 0; i < 4; i++)
+	{
+		for(int j = 0; j < 8; j++){
+			printf("%4d ",grilleJeu[i][j]);
+			fflush(stdout);
+		}
+			
+		printf("\n");
+	}
+	printf("\n");
+ }
+
+ //------------------------------------------------------
+
+void HandlerSIGALRM(int){
+	delaiEnnemis -= 250;
+	if(delaiEnnemis > 2500)
+		alarm(15);
+	printf("\033[93mDelay = %d\033[0m\n",delaiEnnemis);
+}
+
+void HandlerSIGQUIT(int){
 	//fprintf(stdout,"HandlerSIQUIT\n");
  }
