@@ -826,17 +826,17 @@ void* ThreadCroco(void*){
 	}
 
 	while(!PosHorCourrante->haut){
-		if(PosHorCourrante->position > 1){
+		if(PosHorCourrante->position > 0){
 			pthread_mutex_lock(&mutexGrilleJeu);
-				afficherCroco(PosHorCourrante->position*2+7,PosHorCourrante->position%2+1);
-				setGrilleJeu(1,PosHorCourrante->position,CROCO,pthread_self());
+				afficherCroco(PosHorCourrante->position*2+8,PosHorCourrante->position%2+1+3);
+				setGrilleJeu(3,PosHorCourrante->position,CROCO,pthread_self());
 			pthread_mutex_unlock(&mutexGrilleJeu);
 
 			nanosleep(&wait,NULL);
 
 			pthread_mutex_lock(&mutexGrilleJeu);
-				effacerCarres(8,PosHorCourrante->position*2+7,1,1);
-				setGrilleJeu(1,PosHorCourrante->position);
+				effacerCarres(12,PosHorCourrante->position*2+8,1,1);
+				setGrilleJeu(3,PosHorCourrante->position);
 			pthread_mutex_unlock(&mutexGrilleJeu);
 
 			(PosHorCourrante->position)--;
