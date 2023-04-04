@@ -631,13 +631,6 @@ void* ThreadDKJr(void*){
 				case SDLK_UP:
 					struct timespec time = timespec{1,400'000'000};
 
-					/* ------------- verison caca ------------
-					if(positionDKJr != 2 &&positionDKJr != 7){						
-						//setGrilleJeu(1,positionDKJr);	
-						setGrilleJeu(0,positionDKJr,DKJR,pthread_self());
-						effacerCarres(7, (positionDKJr * 2) + 7, 2, 2);
-					}
-					-----------------------------------------*/
 					setGrilleJeu(1,positionDKJr);	
 					if(positionDKJr == 6){
 						effacerCarres(7, (positionDKJr * 2) + 7, 2, 2);
@@ -651,7 +644,7 @@ void* ThreadDKJr(void*){
 						setGrilleJeu(0,positionDKJr,DKJR,pthread_self());
 						afficherDKJr(6,(positionDKJr * 2) + 7,8);
 						//printGrille();
-
+						
 						// mise en place de l'attente de 1,4 seconde.
 						pthread_mutex_unlock(&mutexGrilleJeu);
 
