@@ -840,11 +840,10 @@ void* ThreadCroco(void*){
 			pthread_mutex_unlock(&mutexGrilleJeu);
 
 			(PosHorCourrante->position)--;
-
-			if(PosHorCourrante->position == 1){
-				delete PosHorCourrante;
-				pthread_exit(NULL);
-			}
+		}
+		else{
+			delete PosHorCourrante;
+			pthread_exit(NULL);
 		}
 	}
 
