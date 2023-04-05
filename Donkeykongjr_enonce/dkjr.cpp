@@ -790,7 +790,7 @@ void* ThreadEnnemis(void*){
 		}
 		else{
 			pthread_t Corback;
-			pthread_create(&Corback,NULL,ThreadCroco,NULL);
+			pthread_create(&Corback,NULL,ThreadCorbeau,NULL);
 			printf("\033[38;5;99mCORBACK CREATED\033[0m\n");
 		}
 		wait.tv_sec = delaiEnnemis/1000;
