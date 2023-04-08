@@ -295,7 +295,7 @@ void* ThreadScore(void*){
 			if(MAJScore)
 			{
 				MAJScore = false;
-				afficherScore(score);
+				afficherScore(score);				
 			}
 		pthread_mutex_unlock(&mutexScore);
 	}
@@ -919,6 +919,21 @@ void* ThreadCroco(void*){
 			}
 		}
 	}
+
+	pthread_mutex_lock(&mutexGrilleJeu);
+		if(grilleJeu[3][7].type == DKJR)
+		{			
+			pthread_kill(grilleJeu[3][7].tid,SIGCHLD);
+
+			effacerCarres(12,PosHorCourrante->position*2+8,1,1);
+			setGrilleJeu(3,PosHorCourrante->position);
+
+			pthread_mutex_unlock(&mutexGrilleJeu);
+
+			delete PosHorCourrante;
+			pthread_exit(NULL);
+		}
+	pthread_mutex_unlock(&mutexGrilleJeu);
 
 	while(!PosHorCourrante->haut){
 		if(PosHorCourrante->position > 0){
