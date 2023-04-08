@@ -613,6 +613,7 @@ void* ThreadDKJr(void*){
 
 							setGrilleJeu(3,1,DKJR,pthread_self());
 							afficherDKJr(11, 9, 1);
+							SendDeathMessageToEnnemies(NULL);
 							etatDKJr = LIBRE_BAS;
 							positionDKJr = 1;
 						}
